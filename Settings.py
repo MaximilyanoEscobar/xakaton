@@ -11,5 +11,6 @@ GoToQuestions = InlineKeyboardMarkup(inline_keyboard=[
             InlineKeyboardButton(text="Да", callback_data="Yes"), InlineKeyboardButton(text="Нет", callback_data="No")
         ]
     ])
+MainAdmin = ["843356160"]
 kb_sa = ['Отменить действие']
 AdminStopKeyboard = types.ReplyKeyboardMarkup(resize_keyboard=True).add(*kb_sa)

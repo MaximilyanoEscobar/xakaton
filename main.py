@@ -3,6 +3,8 @@ import json
 import time
 import datetime
 import requests
+from docx import Document
+from docx.shared import Inches
 from pptx import Presentation
 from pptx.util import Inches
 from PIL import Image
@@ -12,7 +14,7 @@ from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import StatesGroup, State
 from aiogram.types import CallbackQuery
 from matplotlib import pyplot as plt
-from Settings import BOT_TOKEN, MainMenu, AdminMenu, GoToQuestions, AdminStopKeyboard
+from Settings import BOT_TOKEN, MainMenu, AdminMenu, GoToQuestions, AdminStopKeyboard, MainAdmin
 from aiogram import Bot, Dispatcher, executor, types
 
 bot = Bot(token=BOT_TOKEN, parse_mode="html")
@@ -54,7 +56,7 @@ async def fill_application(message: types.Message):
 
 @dp.message_handler(lambda message: message.text == "Справка")
 async def fill_application(message: types.Message):
-    await message.answer("Тут будет справка")
+    await message.answer("<b>Данный телеграм-бот предназначен для отправки своих предложений по проектам для дальнейшего инвестирования.  Бот имеет функционал как для работы с обычными пользователями, так и с аналитиками, обрабатывающими анкеты.<b>")
 
 
 @dp.callback_query_handler(Text("Yes"))
@@ -90,6 +92,16 @@ async def send_question_to_user(message: types.Message, state: FSMContext):
             json.dump(file_users, file_users_two, indent=2)
         await message.answer('<b>Вы успешно прошли опрос. Ваша анкета сохранена и отправлена!</b>')
         await state.finish()
+        document = Document()
+        document.add_heading('Контент для Мемо', 0)
+        for id_question, question in enumerate(file_users[str(message.from_user.id)][0]):
+            p = document.add_paragraph(
+                f'Вопрос №{id_question + 1}: ', style='List Bullet'
+            )
+            p.add_run(f" {file_users[str(message.from_user.id)][0][id_question]['Question']}").italic = True
+            p.add_run(f"\nОтвет на вопрос: {file_users[str(message.from_user.id)][0][id_question]['Answer']['Text']}").italic = True
+        document.save(f'{message.from_user.id}.docx')
+        document_path = open(f'{message.from_user.id}.docx', 'rb')
         root = Presentation('Шаблон.pptx')
         for index_question in range(7):
             slide = root.slides[index_question]
@@ -199,6 +211,7 @@ async def send_question_to_user(message: types.Message, state: FSMContext):
             for IdAdmin in file_admins:
                 if file_admins[IdAdmin]['LastAccepted'] is None:
                     await bot.send_message(int(IdAdmin), '<b>Вам пришла новая анкета!</b>')
+                    await bot.send_document(chat_id=int(IdAdmin), document=document_path)
                     await bot.send_document(chat_id=int(IdAdmin), document=send_file)
                     file_admins[IdAdmin]['LastAccepted'] = int(time.time())
                     file_admins[IdAdmin]['Accepted'] += 1
@@ -215,6 +228,7 @@ async def send_question_to_user(message: types.Message, state: FSMContext):
             if len(min_accepted_admin_list) == 1:
                 IdAdmin = min_accepted_admin_list[0]
                 await bot.send_message(int(IdAdmin), '<b>Вам пришла новая анкета!</b>')
+                await bot.send_document(chat_id=int(IdAdmin), document=document_path)
                 await bot.send_document(chat_id=int(IdAdmin), document=send_file)
                 file_admins[IdAdmin]['LastAccepted'] = int(time.time())
                 file_admins[IdAdmin]['Accepted'] += 1
@@ -226,10 +240,12 @@ async def send_question_to_user(message: types.Message, state: FSMContext):
                 for IdAdmin in file_admins:
                     if file_admins[IdAdmin]['LastAccepted'] == min_timestamp:
                         await bot.send_message(int(IdAdmin), '<b>Вам пришла новая анкета!</b>')
+                        await bot.send_document(chat_id=int(IdAdmin), document=document_path)
                         await bot.send_document(chat_id=int(IdAdmin), document=send_file)
                         file_admins[IdAdmin]['LastAccepted'] = int(time.time())
                         file_admins[IdAdmin]['Accepted'] += 1
                         break
+        document_path.close()
         with open('AdminList.json', 'w') as file_admins_two:
             json.dump(file_admins, file_admins_two, indent=2)
     else:
@@ -249,31 +265,32 @@ async def cansel_questions(call: CallbackQuery):
 async def admin_settings(message: types.Message):
     if str(message.from_user.id) in file_admins:
         await message.answer('<b>Успешный вход в админ-панель!</b>', reply_markup=AdminMenu)
-        requests_by_the_hour = [0 for _ in range(24)]
-        timestamp = int(time.time())
-        for TelegramId in file_users:
-            if file_users[TelegramId][1]["TimeEnd"] is not None and datetime.datetime.fromtimestamp(file_users[TelegramId][1]["TimeEnd"]).strftime('%d') == datetime.datetime.fromtimestamp(timestamp).strftime('%d'):
-                requests_by_the_hour[int(datetime.datetime.fromtimestamp(file_users[TelegramId][1]["TimeEnd"]).strftime('%H'))] += 1
-        x_list = []
-        for hour in range(24):
-            hour = str(hour)
-            if len(hour) == 1:
-                hour = '0' + hour
-            x_list.append(hour)
-        y_list = requests_by_the_hour
+        if str(message.from_user.id) in MainAdmin:
+            requests_by_the_hour = [0 for _ in range(24)]
+            timestamp = int(time.time())
+            for TelegramId in file_users:
+                if file_users[TelegramId][1]["TimeEnd"] is not None and datetime.datetime.fromtimestamp(file_users[TelegramId][1]["TimeEnd"]).strftime('%d') == datetime.datetime.fromtimestamp(timestamp).strftime('%d'):
+                    requests_by_the_hour[int(datetime.datetime.fromtimestamp(file_users[TelegramId][1]["TimeEnd"]).strftime('%H'))] += 1
+            x_list = []
+            for hour in range(24):
+                hour = str(hour)
+                if len(hour) == 1:
+                    hour = '0' + hour
+                x_list.append(hour)
+            y_list = requests_by_the_hour
 
-        plt.title('Количество заявок по часам')
-        plt.xlabel('Часы')
-        plt.ylabel('Количество заявок')
+            plt.title('Количество заявок по часам')
+            plt.xlabel('Часы')
+            plt.ylabel('Количество заявок')
 
-        plt.bar(x_list, y_list)
-        plt.savefig('Gistogramma.png', dpi='figure',
-                    bbox_inches=None, pad_inches=1,
-                    facecolor='auto', edgecolor='auto',
-                    backend=None)
-        with open('Gistogramma.png', 'rb') as file:
-            await message.answer('<b>Статистика заявок за день:</b>')
-            await bot.send_photo(message.from_user.id, photo=file)
+            plt.bar(x_list, y_list)
+            plt.savefig('Gistogramma.png', dpi='figure',
+                        bbox_inches=None, pad_inches=1,
+                        facecolor='auto', edgecolor='auto',
+                        backend=None)
+            with open('Gistogramma.png', 'rb') as file:
+                await message.answer('<b>Статистика заявок за день:</b>')
+                await bot.send_photo(message.from_user.id, photo=file)
     else:
         await message.answer('<b>Вы не являетесь администратором</b>!')
 
