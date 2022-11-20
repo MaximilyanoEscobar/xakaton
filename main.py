@@ -3,6 +3,8 @@ import json
 import time
 import datetime
 import requests
+from pptx.chart.data import CategoryChartData
+from pptx.enum.chart import XL_CHART_TYPE
 from docx import Document
 from docx.shared import Inches
 from pptx import Presentation
@@ -56,7 +58,7 @@ async def fill_application(message: types.Message):
 
 @dp.message_handler(lambda message: message.text == "Справка")
 async def fill_application(message: types.Message):
-    await message.answer("<b>Данный телеграм-бот предназначен для отправки своих предложений по проектам для дальнейшего инвестирования.  Бот имеет функционал как для работы с обычными пользователями, так и с аналитиками, обрабатывающими анкеты.<b>")
+    await message.answer("<b>Данный телеграм-бот предназначен для отправки своих предложений по проектам для дальнейшего инвестирования.  Бот имеет функционал как для работы с обычными пользователями, так и с аналитиками, обрабатывающими анкеты.</b>")
 
 
 @dp.callback_query_handler(Text("Yes"))
@@ -178,12 +180,18 @@ async def send_question_to_user(message: types.Message, state: FSMContext):
                         top = Inches(0.15)
                         slide.shapes.add_picture(img_path, left, top, width=Inches(width / 100), height=Inches(height / 100))
             elif index_question == 3:
-                for shape in slide.shapes:
-                    if not shape.has_text_frame:
-                        continue
-                    for paragraph in shape.text_frame.paragraphs:
-                        for run in paragraph.runs:
-                            run.text = file_users[str(message.from_user.id)][0][index_question]["Answer"]["Text"]
+                incomes = str(file_users[str(message.from_user.id)][0][index_question]["Answer"]["Text"]).split(' ')
+                real_incomes = []
+                for coin in incomes:
+                    try:
+                        real_incomes.append(int(coin))
+                    except Exception:
+                        pass
+                chart_data = CategoryChartData()
+                chart_data.categories = ['2020', '2021', '2022']
+                chart_data.add_series('Годовая прибыль', tuple(real_incomes))
+                x, y, cx, cy = Inches(4), Inches(2), Inches(6), Inches(4.5)
+                slide.shapes.add_chart(XL_CHART_TYPE.COLUMN_CLUSTERED, x, y, cx, cy, chart_data)
             elif index_question == 4:
                 for shape in slide.shapes:
                     if not shape.has_text_frame:
@@ -444,7 +452,7 @@ async def remove_question(message: types.Message, state: FSMContext):
 
 @dp.message_handler(content_types=["photo", "text"])
 async def download_photo(message: types.Message, state: FSMContext):
-    await send_question_to_user(message, state)
+    await message.answer('<b>Я вас не понимаю :(</b>')
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True, timeout=None)
